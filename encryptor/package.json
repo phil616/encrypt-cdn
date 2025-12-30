@@ -1,0 +1,22 @@
+{
+  "name": "encryptor",
+  "version": "1.0.0",
+  "description": "CLI tool for encrypting static site assets with AES-GCM",
+  "main": "bin/encrypt.mjs",
+  "type": "module",
+  "bin": {
+    "encryptor": "bin/encrypt.mjs"
+  },
+  "scripts": {
+    "test": "node test.mjs"
+  },
+  "keywords": ["encryption", "aes-gcm", "cli", "static-site"],
+  "author": "phil616",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "commander": "^12.0.0"
+  }
+}

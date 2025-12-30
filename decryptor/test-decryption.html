@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>解密测试页面</title>
+</head>
+<body>
+  <h1>解密测试</h1>
+  <div id="status">正在测试解密功能...</div>
+  <button onclick="testDecryption()">测试解密</button>
+  <button onclick="clearAll()">清除所有缓存</button>
+
+  <script>
+    async function testDecryption() {
+      const statusDiv = document.getElementById('status');
+      statusDiv.textContent = '正在测试...';
+
+      try {
+        // 测试密钥派生和基本解密功能
+        const keyString = 'demo-key-12345';
+
+        // 派生密钥
+        const keyData = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(keyString));
+        const key = await crypto.subtle.importKey(
+          'raw',
+          keyData,
+          { name: 'AES-GCM' },
+          false,
+          ['encrypt', 'decrypt']
+        );
+
+        // 创建测试数据
+        const testData = new TextEncoder().encode('Hello, World!');
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+
+        // 加密测试数据
+        const encrypted = await crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv },
+          key,
+          testData
+        );
+
+        // 解密测试数据
+        const decrypted = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv },
+          key,
+          encrypted
+        );
+
+        const decryptedText = new TextDecoder().decode(decrypted);
+
+        if (decryptedText === 'Hello, World!') {
+          statusDiv.textContent = '基本加密解密测试通过';
+        } else {
+          statusDiv.textContent = '基本测试失败：解密结果不匹配';
+        }
+
+      } catch (error) {
+        statusDiv.textContent = '基本测试失败：' + error.message;
+        console.error('Decryption test error:', error);
+      }
+    }
+
+    async function clearAll() {
+      // 清除 Service Worker
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          await registration.unregister();
+        }
+      }
+
+      // 清除缓存和存储
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // 清除 cookies
+      document.cookie.split(";").forEach(function(c) {
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+
+      document.getElementById('status').textContent = '已清除所有缓存、Service Worker 和存储';
+    }
+
+    // 页面加载时自动测试
+    window.addEventListener('load', () => {
+      setTimeout(testDecryption, 1000);
+    });
+  </script>
+</body>
+</html>

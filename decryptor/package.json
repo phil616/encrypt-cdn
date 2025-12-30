@@ -1,0 +1,19 @@
+{
+  "name": "decryptor",
+  "version": "1.0.0",
+  "description": "Frontend application for decrypting and serving encrypted static assets",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "js-cookie": "^3.0.5"
+  }
+}
