@@ -156,7 +156,7 @@ export async function getApplicationKey() {
 
 // Clear authentication data
 export function clearAuth() {
-  document.cookie = 'dec_key=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax';
+  sessionStorage.removeItem('dec_key');
   sessionStorage.removeItem('access_token');
   sessionStorage.removeItem('auth_state');
 }

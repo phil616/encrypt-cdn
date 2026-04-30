@@ -14,8 +14,11 @@ npm install
 ### 加密目录
 
 ```bash
+# 生成高熵密钥
+node bin/encrypt.mjs keygen > ../site.key
+
 # 基本用法
-node bin/encrypt.mjs encrypt --in ../target_site --out ../decryptor/public/enc --key "your-secret-key"
+node bin/encrypt.mjs encrypt --in ../target_site --out ../decryptor/public/enc --key-file ../site.key
 
 # 使用环境变量中的密钥
 export ENCRYPTION_KEY="your-secret-key"
@@ -25,8 +28,8 @@ node bin/encrypt.mjs encrypt --in ../target_site --out ../decryptor/public/enc -
 echo "your-secret-key" > key.txt
 node bin/encrypt.mjs encrypt --in ../target_site --out ../decryptor/public/enc --key-file key.txt
 
-# 清理输出目录并生成清单
-node bin/encrypt.mjs encrypt --in ../target_site --out ../decryptor/public/enc --key "your-secret-key" --clean --manifest
+# 清理输出目录并生成清单（默认生成 manifest.json）
+node bin/encrypt.mjs encrypt --in ../target_site --out ../decryptor/public/enc --key-file ../site.key --clean
 ```
 
 ### 运行测试
@@ -45,17 +48,34 @@ npm test
 - `--key-file <file>`: 包含密钥的文件
 - `--key-env <env_var>`: 包含密钥的环境变量名（默认: ENCRYPTION_KEY）
 - `-c, --clean`: 加密前清理输出目录
-- `-m, --manifest`: 生成 manifest.json 文件
+- `--no-manifest`: 跳过 manifest.json 生成（不推荐，decryptor 运行时需要 manifest）
 
 ## 加密格式
 
-每个加密文件使用以下格式：
+每个加密文件使用以下格式，文件名默认为内容哈希路径：
 
 ```
 magic(8 bytes): "DRXENC01"
 ivLen(1 byte): 12
 iv(12 bytes): 随机生成的初始化向量
 ciphertext: AES-GCM 加密数据（包含认证标签）
+```
+
+`manifest.json` 使用 v2 格式，按原始 URL 查找加密文件：
+
+```json
+{
+  "version": "2.0",
+  "files": {
+    "/index.html": {
+      "encrypted_path": "ab/abcdef....enc",
+      "content_type": "text/html; charset=utf-8",
+      "original_size": 1024,
+      "encrypted_size": 1061,
+      "sha256": "abcdef..."
+    }
+  }
+}
 ```
 
 ## 支持的文件类型
@@ -72,7 +92,7 @@ ciphertext: AES-GCM 加密数据（包含认证标签）
 
 - 密钥通过 SHA-256 哈希转换为 32 字节 AES 密钥
 - 使用 AES-GCM 模式，每个文件使用随机 IV
-- 输出文件名在原文件名后追加 `.enc` 后缀
-- 保持原始目录结构
+- 输出文件名使用内容 SHA-256 哈希，减少原始路径暴露
+- `manifest.json` 保存 URL 到加密文件的映射
 - 不要在命令行历史、CI 日志或公开文档中暴露真实密钥；优先使用环境变量或密钥文件
-- `--manifest` 不包含密钥哈希，避免为弱密钥提供离线校验依据
+- `manifest.json` 不包含密钥哈希，避免为弱密钥提供离线校验依据

@@ -6,6 +6,8 @@
 importScripts('./crypto.js');
 
 let decryptionKey = null;
+let contentManifest = null;
+let manifestPromise = null;
 
 function getScopeInfo() {
   const scope = self.registration ? self.registration.scope : './';
@@ -29,6 +31,50 @@ function getRelativePath(url) {
 
 function normalizeContentPath(relativePath) {
   return relativePath === '/' ? '/index.html' : relativePath;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function loadManifest() {
+  if (contentManifest) {
+    return contentManifest;
+  }
+
+  if (!manifestPromise) {
+    const { scopeUrl } = getScopeInfo();
+    const manifestUrl = new URL('enc/manifest.json', scopeUrl);
+    manifestPromise = fetch(manifestUrl, { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Manifest not found: ${response.status}`);
+        }
+
+        const manifest = await response.json();
+        if (!manifest || manifest.version !== '2.0' || !manifest.files || typeof manifest.files !== 'object') {
+          throw new Error('Invalid encrypted site manifest');
+        }
+
+        contentManifest = manifest;
+        return manifest;
+      })
+      .catch((error) => {
+        manifestPromise = null;
+        throw error;
+      });
+  }
+
+  return manifestPromise;
+}
+
+function getManifestEntry(manifest, originalPath) {
+  return manifest.files[originalPath] || null;
 }
 
 // Check if request should be handled by SW
@@ -58,6 +104,10 @@ function shouldInterceptRequest(url) {
   // Only intercept if we have the decryption key
   if (!decryptionKey) {
     return false;
+  }
+
+  if (contentManifest) {
+    return Boolean(getManifestEntry(contentManifest, relativePath));
   }
 
   // Intercept HTML, CSS, JS files and static assets
@@ -109,13 +159,19 @@ async function handleRequest(request) {
     return fetch(request);
   }
 
-  // Map to encrypted file path
-  // Use the Service Worker's scope as base path to handle different deployment paths
   const { scopeUrl } = getScopeInfo();
-  const encryptedPath = `enc${originalPath}.enc`.replace(/^\/+/, '');
-  const encryptedUrl = new URL(encryptedPath, scopeUrl);
 
   try {
+    const manifest = await loadManifest();
+    const manifestEntry = getManifestEntry(manifest, originalPath);
+
+    if (!manifestEntry) {
+      return fetch(request);
+    }
+
+    // Use the manifest instead of guessing encrypted paths from public URLs.
+    const encryptedUrl = new URL(`enc/${manifestEntry.encrypted_path}`.replace(/^\/+/, ''), scopeUrl);
+
     // Fetch encrypted file
     const encryptedResponse = await fetch(encryptedUrl);
 
@@ -132,17 +188,17 @@ async function handleRequest(request) {
     const decryptedData = await decryptData(encryptedData, decryptionKey);
 
     // For HTML files, inject necessary scripts and logout button
-    if (originalPath.endsWith('.html') || originalPath === '/') {
+    if (manifestEntry.content_type && manifestEntry.content_type.startsWith('text/html')) {
       const htmlContent = new TextDecoder().decode(decryptedData);
 
       // Inject bootstrap script and logout button
-      const modifiedHtml = injectBootstrapContent(htmlContent, originalPath);
+      const modifiedHtml = injectBootstrapContent(htmlContent);
 
       return new Response(modifiedHtml, {
         status: 200,
         statusText: 'OK',
         headers: {
-          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Type': manifestEntry.content_type,
           'Cache-Control': 'public, max-age=3600'
         }
       });
@@ -153,7 +209,7 @@ async function handleRequest(request) {
       status: 200,
       statusText: 'OK',
       headers: {
-        'Content-Type': getMimeType(originalPath),
+        'Content-Type': manifestEntry.content_type || getMimeType(originalPath),
         'Cache-Control': 'public, max-age=3600'
       }
     });
@@ -205,14 +261,12 @@ function createErrorResponse(message, status, originalPath) {
               });
             }
 
-            // Clear cookies
-            document.cookie.split(";").forEach(function(c) {
-              document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-            });
-
-            // Clear storage
-            localStorage.clear();
-            sessionStorage.clear();
+            // Clear only this runtime's session keys.
+            sessionStorage.removeItem('dec_key');
+            sessionStorage.removeItem('access_token');
+            sessionStorage.removeItem('auth_state');
+            sessionStorage.removeItem('content_loaded');
+            sessionStorage.removeItem('sw_reload_in_progress');
 
             // Redirect to home
             setTimeout(function() {
@@ -228,7 +282,7 @@ function createErrorResponse(message, status, originalPath) {
       <body>
         <div class="error">
           <h1>🔐 解密错误</h1>
-          <p>${message}</p>
+          <p>${escapeHtml(message)}</p>
         </div>
 
         <div class="warning">
@@ -252,7 +306,7 @@ function createErrorResponse(message, status, originalPath) {
       headers: { 'Content-Type': 'text/html; charset=utf-8' }
     });
   } else {
-    return new Response(`Decryption Error: ${message}`, {
+    return new Response(`Decryption Error: ${String(message)}`, {
       status: status === 404 ? 404 : 403,
       headers: { 'Content-Type': 'text/plain; charset=utf-8' }
     });
@@ -291,6 +345,8 @@ self.addEventListener('message', (event) => {
   } else if (type === 'CLEAR_KEY') {
     console.log('SW: Clearing decryption key');
     decryptionKey = null;
+    contentManifest = null;
+    manifestPromise = null;
   } else if (type === 'PING') {
     console.log('SW: Received PING, key available:', !!decryptionKey);
     if (event.ports && event.ports[0]) {
@@ -303,14 +359,16 @@ self.addEventListener('message', (event) => {
 });
 
 // Inject bootstrap content into decrypted HTML
-function injectBootstrapContent(htmlContent, originalPath) {
+function injectBootstrapContent(htmlContent) {
   // Simple string replacement to ensure bootstrap script is present
   // Remove any existing bootstrap script first
   htmlContent = htmlContent.replace(/<script[^>]*bootstrap\.js[^>]*><\/script>/gi, '');
 
   // Add bootstrap script before </head>
   const headEndPattern = /<\/head>/i;
-  const bootstrapScript = '<script src="/bootstrap.js"></script>';
+  const { scopeUrl } = getScopeInfo();
+  const bootstrapSrc = new URL('bootstrap.js', scopeUrl).pathname;
+  const bootstrapScript = `<script src="${bootstrapSrc}"></script>`;
 
   if (headEndPattern.test(htmlContent)) {
     htmlContent = htmlContent.replace(headEndPattern, bootstrapScript + '</head>');

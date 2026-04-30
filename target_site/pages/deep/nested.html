@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nested - Encrypt CDN Demo</title>
+  <link rel="stylesheet" href="/assets/styles/site.css">
+  <script src="/assets/js/app.js" defer></script>
+</head>
+<body data-page="nested">
+  <header class="site-header">
+    <a class="brand" href="/index.html">
+      <img src="/assets/img/logo.svg" alt="" width="36" height="36">
+      <span>Encrypt CDN Demo</span>
+    </a>
+    <nav>
+      <a href="/index.html">Home</a>
+      <a href="/pages/about.html">About</a>
+      <a href="/pages/space page.html">Space Path</a>
+    </nav>
+  </header>
+
+  <main class="narrow">
+    <h1>Deep nested page</h1>
+    <p>
+      This URL verifies nested path mapping:
+      <code>/pages/deep/nested.html</code>.
+    </p>
+    <p>
+      The page also checks that bootstrap injection does not depend on the
+      current document depth.
+    </p>
+  </main>
+</body>
+</html>

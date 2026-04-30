@@ -1,0 +1,24 @@
+{
+  "features": [
+    {
+      "name": "HTML",
+      "coverage": "top-level, nested, and URL-encoded page paths"
+    },
+    {
+      "name": "CSS",
+      "coverage": "absolute asset URLs and responsive layout"
+    },
+    {
+      "name": "JavaScript",
+      "coverage": "deferred script execution after SW decryption"
+    },
+    {
+      "name": "JSON",
+      "coverage": "runtime fetch through the manifest"
+    },
+    {
+      "name": "SVG",
+      "coverage": "image tag, favicon, and CSS background"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import path from 'path';
 import { encryptDirectory } from '../src/fileProcessor.js';
 import { readFileSync } from 'fs';
+import { randomBytes } from 'crypto';
 
 const program = new Command();
 
@@ -11,6 +12,20 @@ program
   .name('encryptor')
   .description('Encrypt static site assets with AES-GCM')
   .version('1.0.0');
+
+program
+  .command('keygen')
+  .description('Generate a high-entropy encryption key')
+  .option('-b, --bytes <number>', 'Number of random bytes', '32')
+  .action((options) => {
+    const byteLength = Number.parseInt(options.bytes, 10);
+    if (!Number.isInteger(byteLength) || byteLength < 32) {
+      console.error('Error: key size must be at least 32 bytes.');
+      process.exit(1);
+    }
+
+    console.log(randomBytes(byteLength).toString('base64url'));
+  });
 
 program
   .command('encrypt')
@@ -21,7 +36,7 @@ program
   .option('--key-file <file>', 'File containing encryption key')
   .option('--key-env <env_var>', 'Environment variable containing key', 'ENCRYPTION_KEY')
   .option('-c, --clean', 'Clean output directory before encryption', false)
-  .option('-m, --manifest', 'Generate manifest.json file', false)
+  .option('--no-manifest', 'Skip manifest.json generation')
   .action(async (options) => {
     try {
       // Resolve input and output paths

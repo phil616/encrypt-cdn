@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { encryptData } from './crypto.js';
+import { createEncryptedPath, createManifest, getMimeType, normalizeManifestPath } from './manifest.js';
 
 const EXCLUDE_PATTERNS = [
   /^\./,  // Hidden files
@@ -10,7 +11,7 @@ const EXCLUDE_PATTERNS = [
 
 const ENCRYPT_EXTENSIONS = [
   '.html', '.css', '.js', '.json',
-  '.png', '.jpg', '.jpeg', '.svg', '.webp',
+  '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp',
   '.woff', '.woff2', '.ttf', '.ico'
 ];
 
@@ -74,7 +75,7 @@ export async function encryptFile(inputPath, outputPath, keyString, relativePath
  * Process directory encryption
  */
 export async function encryptDirectory(inputDir, outputDir, keyString, options = {}) {
-  const { clean = false, manifest = false } = options;
+  const { clean = false, manifest = true } = options;
 
   // Clean output directory if requested
   if (clean) {
@@ -95,33 +96,33 @@ export async function encryptDirectory(inputDir, outputDir, keyString, options =
   console.log(`Found ${encryptableFiles.length} files to encrypt`);
 
   const { createHash } = await import('crypto');
-  const manifestData = {
-    version: '1.0',
-    files: []
-  };
+  const manifestData = createManifest();
 
   // Encrypt files
   for (const filePath of encryptableFiles) {
     const relativePath = path.relative(inputDir, filePath);
-    const outputPath = path.join(outputDir, relativePath + '.enc');
+    const plainData = await fs.readFile(filePath);
+    const originalHash = createHash('sha256').update(plainData).digest('hex');
+    const encryptedRelativePath = createEncryptedPath(originalHash);
+    const outputPath = path.join(outputDir, encryptedRelativePath);
 
     // Ensure output subdirectory exists
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-    await encryptFile(filePath, outputPath, keyString, relativePath);
+    console.log(`Encrypting: ${relativePath}`);
+    const encrypted = await encryptData(plainData, keyString);
+    await fs.writeFile(outputPath, encrypted);
 
     if (manifest) {
-      const inputStats = await fs.stat(filePath);
       const outputStats = await fs.stat(outputPath);
-
-      const { createHash } = await import('crypto');
-      manifestData.files.push({
-        original_path: relativePath,
-        encrypted_path: relativePath + '.enc',
-        original_size: inputStats.size,
+      const manifestPath = normalizeManifestPath(relativePath);
+      manifestData.files[manifestPath] = {
+        encrypted_path: encryptedRelativePath,
+        content_type: getMimeType(relativePath),
+        original_size: plainData.byteLength,
         encrypted_size: outputStats.size,
-        original_hash: createHash('sha256').update(await fs.readFile(filePath)).digest('hex')
-      });
+        sha256: originalHash
+      };
     }
   }
 

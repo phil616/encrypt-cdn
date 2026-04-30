@@ -144,6 +144,4 @@ sw-cache/
 # Development certificates
 *.pem
 
-# target_site folder: keep the folder but ignore all contents except .gitkeep
-target_site/
-!target_site/.gitkeep
+# Keep the demo target_site source in version control.

@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
 import { encryptData, decryptData } from './src/crypto.js';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import os from 'os';
+import path from 'path';
+import { encryptDirectory } from './src/fileProcessor.js';
 
 async function runTests() {
   console.log('Running encryptor tests...\n');
@@ -49,6 +53,34 @@ async function runTests() {
       }
 
       console.log(`  ✓ Passed (${originalData.length} bytes -> ${encrypted.length} bytes encrypted)\n`);
+    }
+
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'encrypt-cdn-'));
+    const inputDir = path.join(tempRoot, 'site');
+    const outputDir = path.join(tempRoot, 'enc');
+
+    try {
+      await mkdir(inputDir, { recursive: true });
+      await writeFile(path.join(inputDir, 'index.html'), '<!doctype html><h1>Hello</h1>');
+      await writeFile(path.join(inputDir, 'space page.html'), '<!doctype html><h1>Space</h1>');
+
+      await encryptDirectory(inputDir, outputDir, key, { manifest: true });
+      const manifest = JSON.parse(await readFile(path.join(outputDir, 'manifest.json'), 'utf8'));
+      const indexEntry = manifest.files['/index.html'];
+      const spaceEntry = manifest.files['/space%20page.html'];
+
+      if (manifest.version !== '2.0' || !indexEntry?.encrypted_path || !spaceEntry?.encrypted_path) {
+        throw new Error('Manifest v2 output is invalid');
+      }
+
+      if (indexEntry.encrypted_path === 'index.html.enc') {
+        throw new Error('Manifest should use hashed encrypted paths');
+      }
+
+      await readFile(path.join(outputDir, indexEntry.encrypted_path));
+      console.log('Manifest test passed\n');
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
     }
 
     console.log('All tests passed!');

@@ -12,6 +12,7 @@
 ## 核心特性
 
 - **AES-GCM 加密**: 每个文件使用随机 IV，包含完整性验证
+- **Manifest 路由**: Service Worker 只解密 manifest 中声明的资源
 - **无缝路由**: 解密后保持原有 URL，不改变用户体验
 - **双重密钥获取**: 支持手动输入和 OAuth2.1 PKCE 登录
 - **Service Worker**: 透明拦截和解密网络请求
@@ -40,8 +41,11 @@ npm install
 # 运行测试确保工具正常
 npm test
 
+# 生成高熵密钥
+node bin/encrypt.mjs keygen > ../site.key
+
 # 加密演示站点
-node bin/encrypt.mjs encrypt --in ../target_site --out ../decryptor/public/enc --key "csv9WNXMvFJ44QcQ56xj1dF7tDX7reWgkLubzlQ3hYZkm762Y7i9MCC0Rknzf4Hj" --clean --manifest
+node bin/encrypt.mjs encrypt --in ../target_site --out ../decryptor/public/enc --key-file ../site.key --clean
 ```
 
 ### 3. 启动解密前端
@@ -61,7 +65,7 @@ npm run dev
 
 ## 工作流程
 
-1. **加密阶段**: 使用 CLI 工具将静态资源加密为 `.enc` 文件
+1. **加密阶段**: 使用 CLI 工具将静态资源加密为哈希化 `.enc` 文件，并生成 `manifest.json`
 2. **部署阶段**: 将加密文件和前端应用一同部署
 3. **访问阶段**:
    - 用户访问明文入口 HTML
@@ -71,7 +75,7 @@ npm run dev
 
 ## 加密格式规范
 
-每个加密文件使用固定格式：
+每个加密文件使用固定格式，路径映射由 `/enc/manifest.json` 提供：
 
 ```
 DRXENC01        # 8字节魔数
@@ -117,7 +121,7 @@ Authorization: Bearer <access_token>
 │   └── package.json
 ├── decryptor/              # 解密前端应用
 │   ├── public/             # 静态资源
-│   │   ├── enc/           # 加密文件存储目录
+│   │   ├── enc/           # 加密文件和 manifest.json 存储目录
 │   │   ├── sw.js          # Service Worker
 │   │   └── *.html         # 明文入口页面
 │   ├── src/               # 前端源码
@@ -133,7 +137,7 @@ Authorization: Bearer <access_token>
 - **加密算法**: Web Crypto API (AES-GCM)
 - **认证协议**: OAuth 2.1 + PKCE
 - **网络拦截**: Service Worker
-- **状态管理**: Cookie + sessionStorage
+- **状态管理**: Service Worker 内存状态 + sessionStorage
 
 ## 开发调试
 
@@ -175,7 +179,7 @@ location /oidc/ {
 ## 安全考虑
 
 - **客户端解密边界**: 解密密钥最终会进入浏览器，不能用于保护“授权用户也绝不能提取”的数据。
-- **密钥存储**: 解密密钥存储在客户端 Cookie 中，设置 `SameSite=Lax`，HTTPS 下附加 `Secure`；不支持 `HttpOnly`，因为 Service Worker/JS 必须读取密钥。
+- **密钥存储**: 解密密钥仅保存在当前标签页的 `sessionStorage`，并发送到 Service Worker 内存；刷新可复用，会话结束即清除。
 - **传输安全**: 生产环境必须使用 HTTPS，并为入口页、Service Worker 和 OAuth 回调配置可信来源。
 - **密钥强度**: 密钥通过 SHA-256 转换为 32 字节 AES 密钥；原始密钥必须足够随机，不能使用短口令。
 - **完整性**: AES-GCM 提供密文完整性验证，但不能隐藏文件路径、文件大小和访问模式。
@@ -192,7 +196,7 @@ location /oidc/ {
 ### 解密失败
 
 1. 检查密钥是否正确
-2. 确认 Cookie 未过期
+2. 确认当前标签页会话中仍有解密密钥
 3. 查看 Service Worker 控制台错误
 
 ### OAuth 登录失败

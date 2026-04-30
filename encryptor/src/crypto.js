@@ -75,7 +75,7 @@ export async function decryptData(encryptedData, keyString) {
   );
 
   // Parse the encrypted file format
-  const dataView = new DataView(encryptedData.buffer);
+  const dataView = new DataView(encryptedData.buffer, encryptedData.byteOffset, encryptedData.byteLength);
   const magic = new TextDecoder().decode(encryptedData.slice(0, 8));
   if (magic !== MAGIC) {
     throw new Error('Invalid encrypted file format');

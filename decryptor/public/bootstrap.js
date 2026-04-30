@@ -50,9 +50,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   try {
     console.log('=== Starting bootstrap initialization ===');
-    // Check if we already have a decryption key from cookie
-    const existingKey = getCookie('dec_key');
-    console.log('Cookie check result:', existingKey ? `key found (${existingKey.length} chars)` : 'no key');
+    // Check if we already have a decryption key for this tab session
+    const existingKey = getStoredKey();
+    console.log('Stored key check result:', existingKey ? `key found (${existingKey.length} chars)` : 'no key');
 
     // Validate key format (should be non-empty string)
     const hasValidKey = existingKey && typeof existingKey === 'string' && existingKey.trim().length > 0;
@@ -236,7 +236,7 @@ async function forceContentLoad() {
           }, 100);
         } else {
           // Send key to Service Worker
-          const key = getCookie('dec_key');
+          const key = getStoredKey();
           if (key) {
             registration.active.postMessage({ type: 'SET_KEY', key });
             setTimeout(() => {
@@ -247,7 +247,7 @@ async function forceContentLoad() {
       }
     } else {
       // No active Service Worker, register new one
-      const key = getCookie('dec_key');
+      const key = getStoredKey();
       if (key) {
         await registerServiceWorker(key);
         setTimeout(() => {
@@ -264,28 +264,17 @@ async function forceContentLoad() {
   }
 }
 
-// Get cookie value
-function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) {
-    const rawValue = parts.pop().split(';').shift();
-    try {
-      return decodeURIComponent(rawValue);
-    } catch (error) {
-      console.warn('Failed to decode cookie value:', name);
-      return rawValue;
-    }
-  }
-  return null;
+// Store the decryption key only for the current browser tab session.
+function getStoredKey() {
+  return sessionStorage.getItem('dec_key');
 }
 
-// Set cookie
-function setCookie(name, value, days = 30) {
-  const maxAge = Math.max(0, Math.floor(days * 24 * 60 * 60));
-  const secure = window.location.protocol === 'https:' ? ';Secure' : '';
-  const cookieString = `${name}=${encodeURIComponent(value)};Max-Age=${maxAge};path=/;SameSite=Lax${secure}`;
-  document.cookie = cookieString;
+function setStoredKey(value) {
+  if (value) {
+    sessionStorage.setItem('dec_key', value);
+  } else {
+    sessionStorage.removeItem('dec_key');
+  }
 }
 
 // Register service worker with key
@@ -325,8 +314,18 @@ async function registerServiceWorker(key) {
  */
 const verifyKeyWithTestFile = async (key) => {
   try {
-    // Fetch and decrypt the index.html.enc file as a test
-    const response = await fetch('/enc/index.html.enc', { cache: 'no-store' });
+    const manifestResponse = await fetch('/enc/manifest.json', { cache: 'no-store' });
+    if (!manifestResponse.ok) {
+      throw new Error('Cannot fetch manifest');
+    }
+
+    const manifest = await manifestResponse.json();
+    const indexEntry = manifest?.files?.['/index.html'];
+    if (!indexEntry?.encrypted_path) {
+      throw new Error('Manifest does not contain /index.html');
+    }
+
+    const response = await fetch(`/enc/${indexEntry.encrypted_path}`, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error('Cannot fetch test file');
     }
@@ -410,8 +409,8 @@ const sendKeyWithVerification = async (sw, key) => {
     const isKeyValid = await verifyKeyWithTestFile(key);
 
     if (!isKeyValid) {
-      // Clear the invalid cookie
-      setCookie('dec_key', '', -1);
+      // Clear the invalid key
+      setStoredKey('');
       showError('提供的解密密钥无效');
       setTimeout(() => showKeyInputUI(), 2000);
       return;
@@ -581,7 +580,7 @@ function showKeyInputUI() {
 
           <div style="margin-top: 18px; text-align: center;">
             <small style="color: #6b7280; font-size: 13px;">
-              密钥将保存在当前浏览器，有效期 30 天
+              密钥仅保存在当前标签页会话中
             </small>
           </div>
         </div>
@@ -606,7 +605,7 @@ function showKeyInputUI() {
 
       try {
         hideError();
-        setCookie('dec_key', key);
+        setStoredKey(key);
 
         await registerServiceWorker(key);
 
@@ -680,8 +679,8 @@ function hideError() {
  * Log out the user by clearing authentication data and resetting the application
  */
 window.logout = async function() {
-  // Clear decryption key from cookie
-  setCookie('dec_key', '', -1);
+  // Clear decryption key from tab session
+  setStoredKey('');
 
   // Clear tokens and session state
   sessionStorage.removeItem('access_token');
@@ -772,7 +771,7 @@ async function loadDecryptedContent() {
 }
 
 // Add logout button if we have a key (with DOM ready check)
-if (getCookie('dec_key')) {
+if (getStoredKey()) {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', addLogoutButton);
   } else {

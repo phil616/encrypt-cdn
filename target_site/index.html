@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Encrypt CDN Demo</title>
+  <link rel="stylesheet" href="/assets/styles/site.css">
+  <link rel="icon" href="/assets/img/logo.svg" type="image/svg+xml">
+  <script src="/assets/js/app.js" defer></script>
+</head>
+<body data-page="home">
+  <header class="site-header">
+    <a class="brand" href="/index.html">
+      <img src="/assets/img/logo.svg" alt="" width="36" height="36">
+      <span>Encrypt CDN Demo</span>
+    </a>
+    <nav>
+      <a href="/pages/about.html">About</a>
+      <a href="/pages/deep/nested.html">Nested</a>
+      <a href="/pages/space page.html">Space Path</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Manifest v2 coverage</p>
+        <h1>Encrypted static assets, served through the original URLs.</h1>
+        <p>
+          This demo intentionally exercises HTML, CSS, JavaScript, JSON, SVG,
+          nested routes, encoded URLs, and missing-resource handling.
+        </p>
+      </div>
+      <img class="hero-logo" src="/assets/img/logo.svg" alt="Demo logo">
+    </section>
+
+    <section class="grid">
+      <article>
+        <h2>JSON fetch</h2>
+        <p id="json-status">Loading JSON...</p>
+        <ul id="feature-list"></ul>
+      </article>
+      <article>
+        <h2>Missing resource</h2>
+        <p id="missing-status">Checking missing JSON...</p>
+      </article>
+      <article>
+        <h2>Relative links</h2>
+        <p>
+          Navigate to nested pages and come back. The Service Worker should keep
+          resolving every request through the encrypted manifest.
+        </p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

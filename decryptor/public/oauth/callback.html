@@ -96,9 +96,8 @@
 
         // Get application key
         const appKey = await getApplicationKey();
-        // Store key in cookie
-        const secure = window.location.protocol === 'https:' ? ';Secure' : '';
-        document.cookie = `dec_key=${encodeURIComponent(appKey)};path=/;SameSite=Lax;max-age=${30 * 24 * 60 * 60}${secure}`;
+        // Keep the site key in the current tab session; the SW receives it in memory after redirect.
+        sessionStorage.setItem('dec_key', appKey);
 
         // Show success
         document.getElementById('status').textContent = '登录成功！正在跳转...';

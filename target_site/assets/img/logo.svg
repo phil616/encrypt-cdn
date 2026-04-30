@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Encrypt CDN demo logo">
+  <rect width="120" height="120" rx="24" fill="#0d7f72"/>
+  <path d="M36 56h48v36H36z" fill="#ffffff"/>
+  <path d="M45 56V43c0-10 7-18 15-18s15 8 15 18v13h-9V43c0-5-3-9-6-9s-6 4-6 9v13z" fill="#f6c85f"/>
+  <circle cx="60" cy="74" r="6" fill="#0d7f72"/>
+  <path d="M60 78v8" stroke="#0d7f72" stroke-width="5" stroke-linecap="round"/>
+</svg>
