@@ -89,18 +89,16 @@
         document.getElementById('status').textContent = '正在交换授权码...';
 
         // Exchange code for token
-        const tokenResponse = await exchangeCodeForToken(code, state);
-        console.log('Token obtained:', tokenResponse);
+        await exchangeCodeForToken(code, state);
 
         // Show progress
         document.getElementById('status').textContent = '正在获取解密密钥...';
 
         // Get application key
         const appKey = await getApplicationKey();
-        console.log('Application key obtained');
-
         // Store key in cookie
-        document.cookie = `dec_key=${appKey};path=/;SameSite=Lax;max-age=${30 * 24 * 60 * 60}`;
+        const secure = window.location.protocol === 'https:' ? ';Secure' : '';
+        document.cookie = `dec_key=${encodeURIComponent(appKey)};path=/;SameSite=Lax;max-age=${30 * 24 * 60 * 60}${secure}`;
 
         // Show success
         document.getElementById('status').textContent = '登录成功！正在跳转...';
@@ -110,14 +108,15 @@
         let redirectPath = '/';
         if (authStateStr) {
           const authState = JSON.parse(authStateStr);
-          redirectPath = authState.preAuthPath || '/';
+          redirectPath = typeof authState.preAuthPath === 'string' && authState.preAuthPath.startsWith('/')
+            ? authState.preAuthPath
+            : '/';
           sessionStorage.removeItem('auth_state');
         }
 
         // Redirect back to original page with success marker
         const redirectUrl = redirectPath + (redirectPath.includes('?') ? '&' : '?') + 'oauth_success=1';
         setTimeout(() => {
-          console.log('Redirecting to:', redirectUrl);
           window.location.href = redirectUrl;
         }, 1000);
 

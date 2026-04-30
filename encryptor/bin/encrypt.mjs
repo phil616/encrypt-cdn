@@ -46,7 +46,7 @@ program
 
       console.log(`Input directory: ${inputDir}`);
       console.log(`Output directory: ${outputDir}`);
-      console.log(`Using key: ${keyString.substring(0, 8)}...`);
+      console.log('Using key: [redacted]');
 
       await encryptDirectory(inputDir, outputDir, keyString, {
         clean: options.clean,

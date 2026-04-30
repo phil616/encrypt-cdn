@@ -7,12 +7,33 @@ importScripts('./crypto.js');
 
 let decryptionKey = null;
 
+function getScopeInfo() {
+  const scope = self.registration ? self.registration.scope : './';
+  const scopeUrl = new URL(scope, location.origin);
+  return {
+    scopeUrl,
+    basePath: scopeUrl.pathname.replace(/\/$/, '')
+  };
+}
+
+function getRelativePath(url) {
+  const { basePath } = getScopeInfo();
+  let relativePath = url.pathname;
+
+  if (basePath && relativePath.startsWith(`${basePath}/`)) {
+    relativePath = relativePath.slice(basePath.length);
+  }
+
+  return relativePath || '/';
+}
+
+function normalizeContentPath(relativePath) {
+  return relativePath === '/' ? '/index.html' : relativePath;
+}
+
 // Check if request should be handled by SW
 function shouldInterceptRequest(url) {
-  // Get the Service Worker scope to handle relative paths correctly
-  const scope = self.registration ? self.registration.scope : '/';
-  const scopeUrl = new URL(scope, location.origin);
-  const relativePath = url.pathname.replace(scopeUrl.pathname.replace(/\/$/, ''), '');
+  const relativePath = normalizeContentPath(getRelativePath(url));
 
   // Don't intercept SW itself, oauth callback, crypto.js, bootstrap.js, config files, and app scripts
   const plainPaths = [
@@ -29,7 +50,7 @@ function shouldInterceptRequest(url) {
   ];
 
   // Check both absolute paths and relative paths
-  if (plainPaths.some(path => url.pathname === path || relativePath === path)) {
+  if (plainPaths.includes(relativePath) || relativePath.startsWith('/oauth/') || relativePath.startsWith('/enc/')) {
     return false;
   }
 
@@ -57,7 +78,7 @@ function shouldInterceptRequest(url) {
     /^\/img\//
   ];
 
-  return interceptPatterns.some(pattern => pattern.test(url.pathname));
+  return relativePath === '/index.html' || interceptPatterns.some(pattern => pattern.test(relativePath));
 }
 
 // Handle fetch events
@@ -81,7 +102,7 @@ self.addEventListener('fetch', (event) => {
 
 async function handleRequest(request) {
   const url = new URL(request.url);
-  const originalPath = url.pathname;
+  const originalPath = normalizeContentPath(getRelativePath(url));
 
   // If no decryption key is available, let the request pass through to the server
   if (!decryptionKey) {
@@ -90,10 +111,9 @@ async function handleRequest(request) {
 
   // Map to encrypted file path
   // Use the Service Worker's scope as base path to handle different deployment paths
-  const scope = self.registration ? self.registration.scope : '/';
-  const baseUrl = new URL(scope, location.origin);
-  const encryptedPath = `enc${originalPath}.enc`;
-  const encryptedUrl = new URL(encryptedPath, baseUrl);
+  const { scopeUrl } = getScopeInfo();
+  const encryptedPath = `enc${originalPath}.enc`.replace(/^\/+/, '');
+  const encryptedUrl = new URL(encryptedPath, scopeUrl);
 
   try {
     // Fetch encrypted file
@@ -147,8 +167,8 @@ async function handleRequest(request) {
       decryptionKey = null;
 
       // For HTML requests, redirect to home page to allow key re-entry
-      if (originalPath.endsWith('.html') || originalPath === '/') {
-        return Response.redirect(new URL('/index.html', location.origin), 302);
+      if (originalPath.endsWith('.html')) {
+        return Response.redirect(new URL('index.html', scopeUrl), 302);
       }
     }
 
@@ -158,7 +178,7 @@ async function handleRequest(request) {
 
 // Create error response
 function createErrorResponse(message, status, originalPath) {
-  const isHtml = originalPath.endsWith('.html') || originalPath === '/';
+  const isHtml = originalPath.endsWith('.html');
 
   if (isHtml) {
     const html = `
@@ -196,7 +216,7 @@ function createErrorResponse(message, status, originalPath) {
 
             // Redirect to home
             setTimeout(function() {
-              window.location.href = '/index.html';
+              window.location.href = './index.html';
             }, 500);
           }
 
@@ -241,10 +261,23 @@ function createErrorResponse(message, status, originalPath) {
 
 // Handle messages from main thread
 self.addEventListener('message', (event) => {
-  console.log('SW: Received message:', event.data.type);
-  const { type, key } = event.data;
+  const data = event.data || {};
+  const { type, key } = data;
+
+  if (!type) {
+    return;
+  }
+
+  console.log('SW: Received message:', type);
 
   if (type === 'SET_KEY') {
+    if (typeof key !== 'string' || !key.trim()) {
+      if (event.ports && event.ports[0]) {
+        event.ports[0].postMessage({ type: 'KEY_SET', success: false });
+      }
+      return;
+    }
+
     console.log('SW: Setting decryption key');
     decryptionKey = key;
 

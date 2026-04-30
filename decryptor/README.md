@@ -40,6 +40,8 @@ npm install
 npm run dev
 ```
 
+`decryptor` 使用 Vite 8，要求 Node.js `^20.19.0 || >=22.12.0`。
+
 ## 开发配置
 
 ### Vite Proxy 配置
@@ -79,7 +81,7 @@ VITE_OIDC_TOKEN_ENDPOINT=https://your-oidc-provider.com/oauth/token
 ### 2. Service Worker 解密
 
 1. 拦截所有同源 fetch 请求（除明文文件外）
-2. 将请求路径 `/path` 映射到 `/enc/path.enc`
+2. 将请求路径 `/path` 映射到 `/enc/path.enc`，并跳过 OAuth、Service Worker 和已加密资源目录
 3. 解密 AES-GCM 加密的数据
 4. 返回正确 MIME 类型的响应
 
@@ -129,7 +131,7 @@ Authorization: Bearer <access_token>
 
 ## 密钥存储
 
-- **解密密钥**: 存储在 Cookie 中 (`dec_key`)
+- **解密密钥**: 存储在 Cookie 中 (`dec_key`)，HTTPS 下会附加 `Secure`
 - **访问令牌**: 存储在 sessionStorage 中 (`access_token`)
 - **认证状态**: 存储在 sessionStorage 中 (`auth_state`)
 
@@ -153,9 +155,9 @@ Authorization: Bearer <access_token>
 // 手动登出
 logout();
 
-// 查看当前密钥状态
-console.log('Decryption key:', document.cookie.includes('dec_key'));
-console.log('Access token:', sessionStorage.getItem('access_token'));
+// 查看当前状态，不要在生产环境打印真实 token 或密钥
+console.log('Has decryption key:', document.cookie.includes('dec_key'));
+console.log('Has access token:', Boolean(sessionStorage.getItem('access_token')));
 ```
 
 ## 常见问题
@@ -188,7 +190,8 @@ npm run build
 
 ## 安全注意事项
 
-- 解密密钥存储在客户端 Cookie 中
-- Cookie 设置 `SameSite=Lax`，不支持 HttpOnly（因为 JS 需要读取）
-- 生产环境建议使用 HTTPS
-- OAuth token 仅在会话期间有效
+- 解密密钥会进入浏览器端，授权用户可以通过调试工具提取明文资源。
+- Cookie 设置 `SameSite=Lax`，HTTPS 下附加 `Secure`，不支持 `HttpOnly`（因为 JS 需要读取）。
+- 生产环境必须使用 HTTPS，否则 OAuth token 和解密密钥存在被窃取风险。
+- 不要在控制台、manifest、CI 日志或错误上报中输出真实密钥、token 或授权 URL。
+- OAuth token 仅保存在 `sessionStorage`，关闭标签页后失效；仍需后端限制 token 有效期和 Key API 权限。

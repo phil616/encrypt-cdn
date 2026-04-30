@@ -20,6 +20,11 @@ async function deriveKey(keyString) {
  * Parse encrypted file format and decrypt
  */
 async function decryptData(encryptedData, keyString) {
+  const minLength = MAGIC.length + 1 + IV_LENGTH + 16;
+  if (!(encryptedData instanceof ArrayBuffer) || encryptedData.byteLength < minLength) {
+    throw new Error('Invalid encrypted file format');
+  }
+
   const key = await deriveKey(keyString);
 
   // Parse the encrypted file format

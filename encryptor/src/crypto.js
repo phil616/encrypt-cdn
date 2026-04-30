@@ -60,7 +60,11 @@ export async function encryptData(data, keyString) {
  * Decrypt data using AES-GCM (for testing purposes)
  */
 export async function decryptData(encryptedData, keyString) {
-  const key = await deriveKey(keyString);
+  const minLength = MAGIC.length + 1 + IV_LENGTH + 16;
+  if (!(encryptedData instanceof Uint8Array) || encryptedData.byteLength < minLength) {
+    throw new Error('Invalid encrypted file format');
+  }
+
   // For decryption, we need to re-derive with decrypt usage
   const decryptKey = await crypto.subtle.importKey(
     'raw',

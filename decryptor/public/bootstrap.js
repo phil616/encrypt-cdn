@@ -268,15 +268,23 @@ async function forceContentLoad() {
 function getCookie(name) {
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
+  if (parts.length === 2) {
+    const rawValue = parts.pop().split(';').shift();
+    try {
+      return decodeURIComponent(rawValue);
+    } catch (error) {
+      console.warn('Failed to decode cookie value:', name);
+      return rawValue;
+    }
+  }
   return null;
 }
 
 // Set cookie
 function setCookie(name, value, days = 30) {
-  const expires = new Date();
-  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
-  const cookieString = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+  const maxAge = Math.max(0, Math.floor(days * 24 * 60 * 60));
+  const secure = window.location.protocol === 'https:' ? ';Secure' : '';
+  const cookieString = `${name}=${encodeURIComponent(value)};Max-Age=${maxAge};path=/;SameSite=Lax${secure}`;
   document.cookie = cookieString;
 }
 
@@ -292,7 +300,7 @@ async function registerServiceWorker(key) {
 
   try {
     // Check if SW is already registered
-    let registration = await navigator.serviceWorker.getRegistration('/sw.js');
+    let registration = await navigator.serviceWorker.getRegistration();
 
     if (!registration) {
       // Register new Service Worker
@@ -318,7 +326,7 @@ async function registerServiceWorker(key) {
 const verifyKeyWithTestFile = async (key) => {
   try {
     // Fetch and decrypt the index.html.enc file as a test
-    const response = await fetch('/enc/index.html.enc');
+    const response = await fetch('/enc/index.html.enc', { cache: 'no-store' });
     if (!response.ok) {
       throw new Error('Cannot fetch test file');
     }
@@ -573,7 +581,7 @@ function showKeyInputUI() {
 
           <div style="margin-top: 18px; text-align: center;">
             <small style="color: #6b7280; font-size: 13px;">
-              密钥将在本地存储，有效期 30 天
+              密钥将保存在当前浏览器，有效期 30 天
             </small>
           </div>
         </div>
@@ -601,9 +609,6 @@ function showKeyInputUI() {
         setCookie('dec_key', key);
 
         await registerServiceWorker(key);
-
-        // Show success message and reload
-        alert('🎉 密钥验证成功！\n\n正在加载解密内容...');
 
         // Auto-reload with delay
         setTimeout(() => {
@@ -751,13 +756,18 @@ async function loadDecryptedContent() {
   } catch (error) {
     console.error('Failed to load decrypted content:', error);
     // Fallback: show error
-    document.body.innerHTML = `
-      <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif; color: red;">
-        <h1>加载失败</h1>
-        <p>无法加载解密内容: ${error.message}</p>
-        <button onclick="location.reload()">重试</button>
-      </div>
-    `;
+    document.body.textContent = '';
+    const container = document.createElement('div');
+    container.style.cssText = 'text-align: center; padding: 50px; font-family: Arial, sans-serif; color: red;';
+    const title = document.createElement('h1');
+    title.textContent = '加载失败';
+    const message = document.createElement('p');
+    message.textContent = `无法加载解密内容: ${error.message}`;
+    const retryButton = document.createElement('button');
+    retryButton.textContent = '重试';
+    retryButton.addEventListener('click', () => location.reload());
+    container.append(title, message, retryButton);
+    document.body.appendChild(container);
   }
 }
 

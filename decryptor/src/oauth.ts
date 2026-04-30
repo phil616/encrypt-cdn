@@ -3,9 +3,11 @@ import type { OidcConfig, TokenResponse, KeyInfoResponse, AuthState } from './ty
 // Generate random string for PKCE
 function generateRandomString(length: number): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  const randomBytes = new Uint8Array(length);
+  crypto.getRandomValues(randomBytes);
   let result = '';
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+    result += chars.charAt(randomBytes[i] % chars.length);
   }
   return result;
 }
@@ -149,7 +151,7 @@ export async function getApplicationKey(): Promise<string> {
 
 // Clear authentication data
 export function clearAuth(): void {
-  document.cookie = 'dec_key=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+  document.cookie = 'dec_key=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax';
   sessionStorage.removeItem('access_token');
   sessionStorage.removeItem('auth_state');
 }

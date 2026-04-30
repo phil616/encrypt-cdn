@@ -97,7 +97,6 @@ export async function encryptDirectory(inputDir, outputDir, keyString, options =
   const { createHash } = await import('crypto');
   const manifestData = {
     version: '1.0',
-    key_hash: createHash('sha256').update(keyString).digest('hex'),
     files: []
   };
 

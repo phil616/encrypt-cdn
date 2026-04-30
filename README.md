@@ -22,7 +22,7 @@
 ### 1. 环境准备
 
 ```bash
-# 确保安装了 Node.js 16+
+# 确保安装了 Node.js 20.19+ 或 22.12+
 node --version
 
 # 克隆项目
@@ -52,7 +52,7 @@ cd ../decryptor
 npm install
 
 # 启动开发服务器
-npm run dev0
+npm run dev
 ```
 
 ### 4. 访问应用
@@ -174,10 +174,12 @@ location /oidc/ {
 
 ## 安全考虑
 
-- **密钥存储**: 客户端 Cookie (HttpOnly=false，因为 JS 需要读取)
-- **传输安全**: 生产环境必须使用 HTTPS
-- **密钥派生**: SHA-256 单向哈希
-- **完整性**: GCM 模式提供认证和完整性保证
+- **客户端解密边界**: 解密密钥最终会进入浏览器，不能用于保护“授权用户也绝不能提取”的数据。
+- **密钥存储**: 解密密钥存储在客户端 Cookie 中，设置 `SameSite=Lax`，HTTPS 下附加 `Secure`；不支持 `HttpOnly`，因为 Service Worker/JS 必须读取密钥。
+- **传输安全**: 生产环境必须使用 HTTPS，并为入口页、Service Worker 和 OAuth 回调配置可信来源。
+- **密钥强度**: 密钥通过 SHA-256 转换为 32 字节 AES 密钥；原始密钥必须足够随机，不能使用短口令。
+- **完整性**: AES-GCM 提供密文完整性验证，但不能隐藏文件路径、文件大小和访问模式。
+- **CORS**: 生产环境不要对带 `Authorization` 的接口使用宽松通配策略，应限制允许的 Origin。
 
 ## 性能优化
 

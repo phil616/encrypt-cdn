@@ -4,9 +4,11 @@
 // Generate random string for PKCE
 function generateRandomString(length) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  const randomBytes = new Uint8Array(length);
+  crypto.getRandomValues(randomBytes);
   let result = '';
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+    result += chars.charAt(randomBytes[i] % chars.length);
   }
   return result;
 }
@@ -62,9 +64,6 @@ export async function startAuthorization() {
       code_challenge_method: oauthConfig.code_challenge_method
     });
 
-    console.log('Starting OAuth flow with config:', oauthConfig);
-    console.log('Authorization URL:', `${oidcConfig.authorization_endpoint}?${params.toString()}`);
-
     // Redirect to authorization endpoint
     window.location.href = `${oidcConfig.authorization_endpoint}?${params.toString()}`;
 
@@ -99,8 +98,6 @@ export async function exchangeCodeForToken(code, state) {
       code_verifier: authState.code_verifier
     });
 
-    console.log('Exchanging code for token with config:', oauthConfig);
-
     const response = await fetch(oidcConfig.token_endpoint, {
       method: 'POST',
       headers: {
@@ -133,8 +130,6 @@ export async function getApplicationKey() {
       throw new Error('No access token available');
     }
 
-    console.log('Fetching application key from:', oauthConfig.key_api_url);
-
     const response = await fetch(oauthConfig.key_api_url, {
       headers: {
         'Authorization': `Bearer ${accessToken}`
@@ -161,7 +156,7 @@ export async function getApplicationKey() {
 
 // Clear authentication data
 export function clearAuth() {
-  document.cookie = 'dec_key=; expires=Thu, 01 Jan 1970 00:0000 GMT; path=/';
+  document.cookie = 'dec_key=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax';
   sessionStorage.removeItem('access_token');
   sessionStorage.removeItem('auth_state');
 }

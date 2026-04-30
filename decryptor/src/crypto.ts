@@ -19,6 +19,11 @@ export async function deriveKey(keyString: string): Promise<CryptoKey> {
  * Parse encrypted file format and decrypt
  */
 export async function decryptData(encryptedData: ArrayBuffer, keyString: string): Promise<ArrayBuffer> {
+  const minLength = MAGIC.length + 1 + IV_LENGTH + 16;
+  if (!(encryptedData instanceof ArrayBuffer) || encryptedData.byteLength < minLength) {
+    throw new Error('Invalid encrypted file format');
+  }
+
   const key = await deriveKey(keyString);
 
   // Parse the encrypted file format
